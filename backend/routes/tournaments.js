@@ -2,6 +2,16 @@ const express = require('express');
 
 const router = express.Router();
 
+function cleanDate(value) {
+  if (!value || value === '') return null;
+  return value;
+}
+
+function cleanText(value) {
+  if (value === undefined || value === null) return '';
+  return String(value);
+}
+
 router.get('/', async (req, res) => {
   try {
     const { rows } = await req.db.query(
@@ -23,7 +33,7 @@ router.get('/', async (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    console.error('Tournament list error:', err);
     res.status(500).json({ error: 'Ошибка при загрузке турниров' });
   }
 });
@@ -56,7 +66,7 @@ router.get('/:id', async (req, res) => {
 
     res.json(rows[0]);
   } catch (err) {
-    console.error(err);
+    console.error('Tournament get error:', err);
     res.status(500).json({ error: 'Ошибка при загрузке турнира' });
   }
 });
@@ -73,6 +83,10 @@ router.put('/:id', async (req, res) => {
     end_date,
     status,
   } = req.body;
+
+  if (!name_ru || !String(name_ru).trim()) {
+    return res.status(400).json({ error: 'Введите название турнира' });
+  }
 
   try {
     const { rows } = await req.db.query(
@@ -99,13 +113,13 @@ router.put('/:id', async (req, res) => {
         created_at
       `,
       [
-        name_ru,
-        name_kz,
-        name_en,
-        location,
-        start_date,
-        end_date,
-        status,
+        cleanText(name_ru),
+        cleanText(name_kz),
+        cleanText(name_en),
+        cleanText(location),
+        cleanDate(start_date),
+        cleanDate(end_date),
+        status || 'active',
         id,
       ]
     );
@@ -116,8 +130,11 @@ router.put('/:id', async (req, res) => {
 
     res.json(rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Ошибка при сохранении турнира' });
+    console.error('Tournament save error:', err);
+
+    res.status(500).json({
+      error: err.message || 'Ошибка при сохранении турнира',
+    });
   }
 });
 
