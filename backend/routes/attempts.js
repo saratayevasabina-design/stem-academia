@@ -1,52 +1,156 @@
-const router = require('express').Router();
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const express = require('express');
 
-router.post('/', authMiddleware, requireRole('judge', 'admin'), async (req, res) => {
-  const { team_id, arena_id, attempt_number, score, time_seconds, comment, details, tournament_id } = req.body;
-  const client = await req.db.connect();
+const router = express.Router();
+
+async function existsById(db, table, id) {
+  if (!id) return false;
+
   try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      'INSERT INTO attempts (team_id,arena_id,judge_id,attempt_number,score,time_seconds,comment) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [team_id, arena_id, req.user.id, attempt_number, score, time_seconds, comment]
+    const { rows } = await db.query(
+      `SELECT id FROM ${table} WHERE id = $1 LIMIT 1`,
+      [id]
     );
+
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+router.post('/', async (req, res) => {
+  const {
+    team_id,
+    arena_id,
+    attempt_number,
+    score,
+    time_seconds,
+    comment,
+    score_details,
+  } = req.body;
+
+  if (!team_id) {
+    return res.status(400).json({ error: 'team_id is required' });
+  }
+
+  if (!attempt_number) {
+    return res.status(400).json({ error: 'attempt_number is required' });
+  }
+
+  try {
+    const teamExists = await existsById(req.db, 'teams', team_id);
+
+    if (!teamExists) {
+      return res.status(404).json({ error: 'Команда не найдена' });
+    }
+
+    const validArenaId = await existsById(req.db, 'arenas', arena_id)
+      ? arena_id
+      : null;
+
+    const validJudgeId = await existsById(req.db, 'users', req.user?.id)
+      ? req.user.id
+      : null;
+
+    const safeScore = Number(score) || 0;
+    const safeTime =
+      time_seconds === '' || time_seconds === undefined || time_seconds === null
+        ? null
+        : Number(time_seconds);
+
+    const { rows } = await req.db.query(
+      `
+      INSERT INTO attempts (
+        team_id,
+        arena_id,
+        judge_id,
+        attempt_number,
+        score,
+        time_seconds,
+        comment
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+      `,
+      [
+        team_id,
+        validArenaId,
+        validJudgeId,
+        Number(attempt_number),
+        safeScore,
+        safeTime,
+        comment || null,
+      ]
+    );
+
     const attempt = rows[0];
-    if (details?.length) {
-      for (const d of details) {
-        await client.query(
-          'INSERT INTO score_details (attempt_id,criterion_key,criterion_label,value,weight,is_penalty) VALUES ($1,$2,$3,$4,$5,$6)',
-          [attempt.id, d.key, d.label, d.value, d.weight, d.is_penalty || false]
+
+    if (Array.isArray(score_details) && score_details.length > 0) {
+      for (const detail of score_details) {
+        await req.db.query(
+          `
+          INSERT INTO score_details (
+            attempt_id,
+            criterion_key,
+            criterion_label,
+            value,
+            weight,
+            is_penalty
+          )
+          VALUES ($1, $2, $3, $4, $5, $6)
+          `,
+          [
+            attempt.id,
+            detail.criterion_key || detail.key || 'criterion',
+            detail.criterion_label || detail.label || 'Criterion',
+            Number(detail.value) || 0,
+            Number(detail.weight) || 1,
+            Boolean(detail.is_penalty),
+          ]
         );
       }
     }
-    // Update results
-    const teamRes = await client.query('SELECT * FROM teams WHERE id = $1', [team_id]);
-    const team = teamRes.rows[0];
-    const attRes = await client.query('SELECT MAX(score) as best, MIN(time_seconds) as best_time FROM attempts WHERE team_id = $1', [team_id]);
-    await client.query(
-      `INSERT INTO results (team_id,tournament_id,category_id,total_score,best_time_seconds,rank)
-       VALUES ($1,$2,$3,$4,$5,0)
-       ON CONFLICT (team_id) DO UPDATE SET total_score=EXCLUDED.total_score, best_time_seconds=EXCLUDED.best_time_seconds, updated_at=NOW()`,
-      [team_id, team.tournament_id, team.category_id, attRes.rows[0].best || 0, attRes.rows[0].best_time]
-    );
-    await client.query('COMMIT');
-    if (tournament_id) req.io.to(`results_${tournament_id}`).emit('score_updated', { team_id, score, attempt_number });
-    res.status(201).json({ success: true, attempt });
+
+    req.io?.emit('score_updated');
+    req.io?.to(`results:${team_id}`).emit('score_updated');
+
+    res.status(201).json(attempt);
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ error: 'Ошибка при сохранении оценки' });
-  } finally { client.release(); }
+    console.error('Attempt save error:', err);
+
+    res.status(500).json({
+      error: err.message || 'Ошибка при сохранении оценки',
+    });
+  }
 });
 
-router.get('/:team_id', authMiddleware, async (req, res) => {
+router.get('/', async (req, res) => {
+  const { team_id } = req.query;
+
   try {
-    const { rows } = await req.db.query(
-      'SELECT a.*, u.full_name as judge_name FROM attempts a JOIN users u ON u.id=a.judge_id WHERE a.team_id=$1 ORDER BY a.attempt_number',
-      [req.params.team_id]
-    );
+    let query = `
+      SELECT *
+      FROM attempts
+    `;
+
+    const params = [];
+
+    if (team_id) {
+      query += ` WHERE team_id = $1`;
+      params.push(team_id);
+    }
+
+    query += ` ORDER BY submitted_at DESC`;
+
+    const { rows } = await req.db.query(query, params);
+
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: 'Ошибка сервера' }); }
+  } catch (err) {
+    console.error('Attempts load error:', err);
+
+    res.status(500).json({
+      error: 'Ошибка при загрузке попыток',
+    });
+  }
 });
 
 module.exports = router;
