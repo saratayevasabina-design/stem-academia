@@ -4,6 +4,9 @@ import { LangProvider, useLang } from './components/LangContext';
 
 import Home from './pages/Home';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Arena from './pages/Arena';
 import Results from './pages/Results';
 import Admin from './pages/Admin';
@@ -181,7 +184,12 @@ export default function App() {
 
           <Routes>
             <Route path="/" element={<Home />} />
+
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
             <Route path="/results" element={<Results />} />
             <Route path="/assistant" element={<Assistant />} />
 
