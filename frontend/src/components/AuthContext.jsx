@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import api from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -7,55 +8,52 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('sa_user');
+    const loadMe = async () => {
+      const token = localStorage.getItem('sa_token');
 
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-    setLoading(false);
+      try {
+        const res = await api.get('/auth/me');
+        setUser(res.data);
+      } catch (err) {
+        localStorage.removeItem('sa_token');
+        localStorage.removeItem('sa_user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMe();
   }, []);
 
   const login = async (username, password) => {
-    let fakeUser = null;
+    const res = await api.post('/auth/login', {
+      username,
+      password,
+    });
 
-    if (username === 'admin') {
-      fakeUser = {
-        id: 'admin-local',
-        username: 'admin',
-        full_name: 'Главный администратор',
-        role: 'admin',
-      };
-    }
+    localStorage.setItem('sa_token', res.data.token);
+    localStorage.setItem('sa_user', JSON.stringify(res.data.user));
 
-    if (username === 'judge1') {
-      fakeUser = {
-        id: 'judge1-local',
-        username: 'judge1',
-        full_name: 'Судья 1',
-        role: 'judge',
-      };
-    }
+    setUser(res.data.user);
 
-    if (username === 'judge2') {
-      fakeUser = {
-        id: 'judge2-local',
-        username: 'judge2',
-        full_name: 'Судья 2',
-        role: 'judge',
-      };
-    }
+    return res.data.user;
+  };
 
-    if (!fakeUser) {
-      throw new Error('Invalid username or password');
-    }
+  const register = async (data) => {
+    const res = await api.post('/auth/register', data);
 
-    localStorage.setItem('sa_token', 'local-test-token');
-    localStorage.setItem('sa_user', JSON.stringify(fakeUser));
+    localStorage.setItem('sa_token', res.data.token);
+    localStorage.setItem('sa_user', JSON.stringify(res.data.user));
 
-    setUser(fakeUser);
+    setUser(res.data.user);
 
-    return fakeUser;
+    return res.data.user;
   };
 
   const logout = () => {
@@ -65,7 +63,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

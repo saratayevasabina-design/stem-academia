@@ -1,148 +1,126 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { useLang } from '../components/LangContext';
 
 const GREEN = '#2f6b12';
 const DARK = '#153308';
+const LIGHT = '#f3f8ec';
 
 export default function Login() {
   const { login } = useAuth();
-  const { t } = useLang();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({
+    username: '',
+    password: '',
+  });
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const quickUsers = [
-    ['admin', 'Admin123!', 'Главный администратор'],
-    ['judge1', 'Judge123!', 'Судья 1'],
-    ['judge2', 'Judge123!', 'Судья 2'],
-  ];
-
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
       const user = await login(form.username, form.password);
-      navigate(user.role === 'judge' || user.role === 'admin' ? '/arena' : '/results');
+
+      if (user.role === 'admin') {
+        navigate('/admin');
+      } else if (user.role === 'judge') {
+        navigate('/arena');
+      } else {
+        navigate('/results');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || t.login.err || 'Ошибка входа');
+      console.error(err);
+      setError(err.response?.data?.error || 'Ошибка при входе');
     } finally {
       setLoading(false);
     }
   };
 
-  const fillUser = (username, password) => {
-    setForm({ username, password });
-    setError('');
-  };
-
   return (
-    <div
-      style={{
-        minHeight: 'calc(100vh - 52px)',
-        background: 'radial-gradient(circle at top left, #dff0d4 0%, transparent 35%), linear-gradient(135deg, #f7faf4 0%, #e8f4df 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-    >
+    <div style={{ minHeight: '100vh', background: LIGHT, padding: '70px 20px' }}>
       <div
         style={{
+          maxWidth: 1080,
+          margin: '0 auto',
           display: 'grid',
-          gridTemplateColumns: '1.1fr 0.9fr',
-          maxWidth: 980,
-          width: '100%',
+          gridTemplateColumns: '1fr 1fr',
           background: '#fff',
-          borderRadius: 32,
+          borderRadius: 30,
           overflow: 'hidden',
-          border: '1px solid #e4ecd9',
-          boxShadow: '0 30px 80px rgba(31, 77, 10, 0.16)',
+          boxShadow: '0 25px 70px rgba(47,107,18,0.15)',
         }}
       >
-        <div
+        <section
           style={{
-            padding: 48,
-            background: 'linear-gradient(135deg, #244f0d, #4f8f22)',
+            background: GREEN,
             color: '#fff',
-            position: 'relative',
-            overflow: 'hidden',
+            padding: '70px 55px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
           }}
         >
-          <div style={{ fontSize: 110, opacity: 0.15, position: 'absolute', right: 28, bottom: 16 }}>
-            🏆
-          </div>
-
           <div
             style={{
-              width: 56,
-              height: 56,
-              background: 'rgba(255,255,255,0.18)',
-              border: '1px solid rgba(255,255,255,0.25)',
+              width: 64,
+              height: 64,
               borderRadius: 18,
+              background: 'rgba(255,255,255,0.16)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 24,
-              fontWeight: 800,
-              marginBottom: 26,
+              fontSize: 30,
+              fontWeight: 900,
+              marginBottom: 28,
             }}
           >
             S
           </div>
 
-          <h1 style={{ fontSize: 42, lineHeight: 1.1, margin: '0 0 16px', letterSpacing: '-1px' }}>
+          <h1 style={{ fontSize: 42, margin: 0, fontWeight: 900 }}>
             STEM Academia Platform
           </h1>
 
-          <p style={{ fontSize: 16, lineHeight: 1.7, opacity: 0.9, maxWidth: 420 }}>
+          <p style={{ fontSize: 18, lineHeight: 1.6, opacity: 0.9, marginTop: 22 }}>
             Современная платформа для олимпиад: арена, судейство, результаты и управление турниром.
           </p>
 
-          <div style={{ display: 'grid', gap: 12, marginTop: 34 }}>
-            {['Live scoring', 'Admin dashboard', 'Results tracking'].map((item) => (
-              <div
-                key={item}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  background: 'rgba(255,255,255,0.12)',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  borderRadius: 14,
-                  padding: '12px 14px',
-                }}
-              >
-                <span>✓</span>
-                <span style={{ fontWeight: 700 }}>{item}</span>
-              </div>
-            ))}
+          <div style={{ display: 'grid', gap: 12, marginTop: 35 }}>
+            <Feature text="Безопасный вход" />
+            <Feature text="Роли: администратор, судья, участник" />
+            <Feature text="PDF-протокол и результаты" />
           </div>
-        </div>
+        </section>
 
-        <div style={{ padding: 48 }}>
-          <h2 style={{ fontSize: 30, margin: '0 0 8px', color: DARK }}>
-            {t.login.title}
+        <section
+          style={{
+            padding: '70px 55px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+          }}
+        >
+          <h2 style={{ color: DARK, fontSize: 34, margin: 0, fontWeight: 900 }}>
+            Вход в систему
           </h2>
 
-          <p style={{ color: '#6b7280', margin: '0 0 28px', fontSize: 14 }}>
-            {t.login.sub}
+          <p style={{ color: '#6b7280', marginTop: 10, marginBottom: 30 }}>
+            Введите username/email и пароль
           </p>
 
           {error && (
             <div
               style={{
-                background: '#fdecec',
-                color: '#9f1239',
-                border: '1px solid #fecdd3',
-                padding: '12px 14px',
+                background: '#fde8e8',
+                color: '#991b1b',
+                padding: '14px 16px',
                 borderRadius: 14,
-                fontSize: 13,
+                fontWeight: 800,
                 marginBottom: 18,
               }}
             >
@@ -150,100 +128,133 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: DARK, marginBottom: 8 }}>
-              {t.login.user}
-            </label>
-            <input
-              type="text"
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: '1px solid #dfe8d6',
-                borderRadius: 14,
-                fontSize: 15,
-                marginBottom: 18,
-              }}
-              placeholder="admin"
-              required
-            />
+          <form onSubmit={handleLogin} style={{ display: 'grid', gap: 18 }}>
+            <div>
+              <label style={label}>Username или email</label>
+              <input
+                style={input}
+                value={form.username}
+                onChange={(e) =>
+                  setForm({ ...form, username: e.target.value })
+                }
+                placeholder="Введите username или email"
+              />
+            </div>
 
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: DARK, marginBottom: 8 }}>
-              {t.login.pass}
-            </label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: '1px solid #dfe8d6',
-                borderRadius: 14,
-                fontSize: 15,
-                marginBottom: 10,
-              }}
-              placeholder="••••••••"
-              required
-            />
+            <div>
+              <label style={label}>Пароль</label>
+              <input
+                style={input}
+                type="password"
+                value={form.password}
+                onChange={(e) =>
+                  setForm({ ...form, password: e.target.value })
+                }
+                placeholder="Введите пароль"
+              />
+            </div>
 
-            <div style={{ color: GREEN, fontSize: 13, fontWeight: 700, marginBottom: 22 }}>
-              {t.login.forgot}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 12,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              <Link
+                to="/forgot-password"
+                style={{
+                  color: GREEN,
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                }}
+              >
+                Забыли пароль?
+              </Link>
+
+              <Link
+                to="/register"
+                style={{
+                  color: GREEN,
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                }}
+              >
+                Создать аккаунт
+              </Link>
             </div>
 
             <button
               type="submit"
               disabled={loading}
               style={{
-                width: '100%',
-                padding: 15,
                 background: GREEN,
                 color: '#fff',
                 border: 'none',
-                borderRadius: 15,
+                borderRadius: 16,
+                padding: '16px 20px',
                 fontSize: 16,
-                fontWeight: 800,
+                fontWeight: 900,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.75 : 1,
-                boxShadow: '0 14px 30px rgba(47, 107, 18, 0.22)',
+                marginTop: 8,
               }}
             >
-              {loading ? 'Загрузка...' : t.login.btn}
+              {loading ? 'Входим...' : 'Войти'}
             </button>
           </form>
 
-          <div style={{ marginTop: 26 }}>
-            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>
-              Быстрый вход:
-            </p>
-
-            <div style={{ display: 'grid', gap: 8 }}>
-              {quickUsers.map(([username, password, label]) => (
-                <button
-                  key={username}
-                  type="button"
-                  onClick={() => fillUser(username, password)}
-                  style={{
-                    padding: '10px 12px',
-                    background: '#f0f7ec',
-                    color: DARK,
-                    border: '1px solid #dcebd1',
-                    borderRadius: 12,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  {label}: {username}
-                </button>
-              ))}
-            </div>
+          <div
+            style={{
+              marginTop: 25,
+              background: '#f8fbf4',
+              border: '1px solid #e5eadf',
+              borderRadius: 16,
+              padding: 16,
+              color: '#4b5563',
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            Новый пользователь после регистрации получает роль <b>viewer</b>.  
+            Доступ судьи или администратора выдаёт только главный администратор.
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
+
+function Feature({ text }) {
+  return (
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.14)',
+        border: '1px solid rgba(255,255,255,0.18)',
+        borderRadius: 16,
+        padding: '14px 16px',
+        fontWeight: 800,
+      }}
+    >
+      ✓ {text}
+    </div>
+  );
+}
+
+const label = {
+  display: 'block',
+  color: DARK,
+  fontWeight: 800,
+  marginBottom: 8,
+};
+
+const input = {
+  width: '100%',
+  padding: '15px 16px',
+  borderRadius: 14,
+  border: '1px solid #dfe8d6',
+  outline: 'none',
+  fontSize: 15,
+  boxSizing: 'border-box',
+};
