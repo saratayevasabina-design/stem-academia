@@ -1,12 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const { Resend } = require('resend');
 
 const router = express.Router();
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 function createToken(user) {
   return jwt.sign(
@@ -18,6 +14,10 @@ function createToken(user) {
     process.env.JWT_SECRET || 'dev_secret',
     { expiresIn: '7d' }
   );
+}
+
+function createResetCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 /* REGISTER */
@@ -105,6 +105,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = rows[0];
+
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!isValidPassword) {
@@ -172,19 +173,13 @@ router.get('/me', async (req, res) => {
   }
 });
 
-/* FORGOT PASSWORD — SEND EMAIL */
+/* FORGOT PASSWORD — CREATE 6 DIGIT CODE */
 router.post('/forgot-password', async (req, res) => {
   const { usernameOrEmail } = req.body;
 
   if (!usernameOrEmail) {
     return res.status(400).json({
       error: 'Введите username или email',
-    });
-  }
-
-  if (!process.env.RESEND_API_KEY) {
-    return res.status(500).json({
-      error: 'RESEND_API_KEY не найден в Render Environment',
     });
   }
 
@@ -207,17 +202,10 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const user = rows[0];
-
-    if (!user.email) {
-      return res.status(400).json({
-        error: 'У этого пользователя нет email',
-      });
-    }
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetCode = createResetCode();
 
     const expires = new Date();
-    expires.setMinutes(expires.getMinutes() + 30);
+    expires.setMinutes(expires.getMinutes() + 10);
 
     await req.db.query(
       `
@@ -226,91 +214,29 @@ router.post('/forgot-password', async (req, res) => {
           reset_token_expires = $2
       WHERE id = $3
       `,
-      [resetToken, expires, user.id]
+      [resetCode, expires, user.id]
     );
 
-    const frontendUrl =
-      process.env.FRONTEND_URL || 'https://stem-academia.vercel.app';
-
-    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
-
-    const emailResult = await resend.emails.send({
-      from: 'STEM Academia <onboarding@resend.dev>',
-      to: user.email,
-      subject: 'Сброс пароля — STEM Academia',
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>Сброс пароля</h2>
-
-          <p>Здравствуйте, ${user.full_name || user.username}.</p>
-
-          <p>Вы запросили восстановление пароля для STEM Academia.</p>
-
-          <p>Нажмите на кнопку ниже, чтобы создать новый пароль:</p>
-
-          <p>
-            <a 
-              href="${resetLink}" 
-              style="
-                background:#2f6b12;
-                color:white;
-                padding:12px 18px;
-                border-radius:10px;
-                text-decoration:none;
-                font-weight:bold;
-                display:inline-block;
-              "
-            >
-              Сбросить пароль
-            </a>
-          </p>
-
-          <p>Ссылка действует 30 минут.</p>
-
-          <p>
-            Если кнопка не работает, скопируйте эту ссылку и откройте её в браузере:
-          </p>
-
-          <p style="word-break: break-all;">
-            ${resetLink}
-          </p>
-
-          <p>Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</p>
-        </div>
-      `,
-    });
-
-    if (emailResult.error) {
-      console.error('Resend send error:', emailResult.error);
-
-      return res.status(500).json({
-        error:
-          emailResult.error.message ||
-          'Resend не смог отправить письмо. Проверьте API key, email или домен.',
-      });
-    }
-
-    console.log('Resend email sent:', emailResult.data);
-
     res.json({
-      message: 'Ссылка для сброса пароля отправлена на email',
+      message: 'Код для сброса пароля создан. Он действует 10 минут.',
+      resetCode,
     });
   } catch (err) {
-    console.error('Forgot password email error:', err);
+    console.error('Forgot password code error:', err);
 
     res.status(500).json({
-      error: err.message || 'Ошибка при отправке письма',
+      error: err.message || 'Ошибка при создании кода',
     });
   }
 });
 
-/* RESET PASSWORD */
+/* RESET PASSWORD BY CODE */
 router.post('/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
+  const { code, newPassword } = req.body;
 
-  if (!token || !newPassword) {
+  if (!code || !newPassword) {
     return res.status(400).json({
-      error: 'Введите token и новый пароль',
+      error: 'Введите код и новый пароль',
     });
   }
 
@@ -328,12 +254,12 @@ router.post('/reset-password', async (req, res) => {
       WHERE reset_token = $1
         AND reset_token_expires > NOW()
       `,
-      [token]
+      [String(code).trim()]
     );
 
     if (!rows.length) {
       return res.status(400).json({
-        error: 'Ссылка недействительна или срок истёк',
+        error: 'Код недействителен или срок истёк',
       });
     }
 
@@ -354,7 +280,7 @@ router.post('/reset-password', async (req, res) => {
       message: 'Пароль успешно изменён',
     });
   } catch (err) {
-    console.error('Reset password error:', err);
+    console.error('Reset password code error:', err);
 
     res.status(500).json({
       error: err.message || 'Ошибка при смене пароля',

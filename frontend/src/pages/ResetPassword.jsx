@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
 const GREEN = '#2f6b12';
@@ -8,10 +8,8 @@ const LIGHT = '#f3f8ec';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
-  const token = searchParams.get('token');
-
+  const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -25,8 +23,8 @@ export default function ResetPassword() {
     setError('');
     setMessage('');
 
-    if (!token) {
-      setError('Token не найден');
+    if (!code.trim()) {
+      setError('Введите код');
       return;
     }
 
@@ -44,7 +42,7 @@ export default function ResetPassword() {
 
     try {
       await api.post('/auth/reset-password', {
-        token,
+        code,
         newPassword,
       });
 
@@ -75,7 +73,7 @@ export default function ResetPassword() {
         </h1>
 
         <p style={{ color: '#6b7280', marginTop: 10, marginBottom: 28 }}>
-          Введите новый пароль для аккаунта.
+          Введите 6-значный код и новый пароль.
         </p>
 
         {error && (
@@ -109,6 +107,23 @@ export default function ResetPassword() {
         )}
 
         <form onSubmit={handleReset} style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <label style={label}>Код</label>
+            <input
+              style={{
+                ...input,
+                textAlign: 'center',
+                fontSize: 24,
+                fontWeight: 900,
+                letterSpacing: 6,
+              }}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123456"
+              maxLength={6}
+            />
+          </div>
+
           <div>
             <label style={label}>Новый пароль</label>
             <input
@@ -150,8 +165,8 @@ export default function ResetPassword() {
         </form>
 
         <div style={{ marginTop: 22, color: '#6b7280' }}>
-          <Link to="/login" style={{ color: GREEN, fontWeight: 900 }}>
-            Вернуться ко входу
+          <Link to="/forgot-password" style={{ color: GREEN, fontWeight: 900 }}>
+            Получить новый код
           </Link>
         </div>
       </div>

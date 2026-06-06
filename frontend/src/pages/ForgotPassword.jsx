@@ -8,6 +8,7 @@ const LIGHT = '#f3f8ec';
 
 export default function ForgotPassword() {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,6 +18,7 @@ export default function ForgotPassword() {
 
     setError('');
     setMessage('');
+    setResetCode('');
     setLoading(true);
 
     try {
@@ -24,13 +26,11 @@ export default function ForgotPassword() {
         usernameOrEmail,
       });
 
-      setMessage(
-        res.data.message ||
-          'Если такой аккаунт существует, ссылка для сброса пароля отправлена на email.'
-      );
+      setMessage(res.data.message || 'Код создан');
+      setResetCode(res.data.resetCode || '');
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Ошибка при отправке письма');
+      setError(err.response?.data?.error || 'Ошибка при создании кода');
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function ForgotPassword() {
         </h1>
 
         <p style={{ color: '#6b7280', marginTop: 10, marginBottom: 28 }}>
-          Введите username или email. Ссылка для смены пароля будет отправлена на вашу почту.
+          Введите username или email. Сайт создаст одноразовый код для смены пароля.
         </p>
 
         {error && (
@@ -84,8 +84,55 @@ export default function ForgotPassword() {
             }}
           >
             {message}
-            <br />
-            Проверьте Inbox, Spam или Promotions.
+          </div>
+        )}
+
+        {resetCode && (
+          <div
+            style={{
+              background: '#f8fbf4',
+              border: '1px solid #dfe8d6',
+              borderRadius: 18,
+              padding: 22,
+              marginBottom: 20,
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ color: '#6b7280', fontWeight: 800 }}>
+              Ваш код для сброса пароля:
+            </div>
+
+            <div
+              style={{
+                color: DARK,
+                fontSize: 42,
+                fontWeight: 900,
+                letterSpacing: 8,
+                marginTop: 12,
+              }}
+            >
+              {resetCode}
+            </div>
+
+            <div style={{ color: '#6b7280', marginTop: 10 }}>
+              Код действует 10 минут.
+            </div>
+
+            <Link
+              to="/reset-password"
+              style={{
+                display: 'inline-block',
+                marginTop: 18,
+                background: GREEN,
+                color: '#fff',
+                padding: '13px 18px',
+                borderRadius: 14,
+                fontWeight: 900,
+                textDecoration: 'none',
+              }}
+            >
+              Перейти к смене пароля
+            </Link>
           </div>
         )}
 
@@ -114,7 +161,7 @@ export default function ForgotPassword() {
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
           >
-            {loading ? 'Отправляем...' : 'Отправить ссылку на email'}
+            {loading ? 'Создаём...' : 'Создать код'}
           </button>
         </form>
 
