@@ -2,8 +2,11 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { Resend } = require('resend');
 
 const router = express.Router();
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 function createToken(user) {
   return jwt.sign(
@@ -100,7 +103,6 @@ router.post('/login', async (req, res) => {
     }
 
     const user = rows[0];
-
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!isValidPassword) {
@@ -168,7 +170,7 @@ router.get('/me', async (req, res) => {
   }
 });
 
-/* FORGOT PASSWORD */
+/* FORGOT PASSWORD — SEND EMAIL */
 router.post('/forgot-password', async (req, res) => {
   const { usernameOrEmail } = req.body;
 
@@ -178,10 +180,16 @@ router.post('/forgot-password', async (req, res) => {
     });
   }
 
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(500).json({
+      error: 'RESEND_API_KEY не найден в Render Environment',
+    });
+  }
+
   try {
     const { rows } = await req.db.query(
       `
-      SELECT id, username, email
+      SELECT id, username, email, full_name
       FROM users
       WHERE username = $1 OR email = $1
       `,
@@ -195,6 +203,12 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const user = rows[0];
+
+    if (!user.email) {
+      return res.status(400).json({
+        error: 'У этого пользователя нет email',
+      });
+    }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
 
@@ -216,15 +230,38 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
+    await resend.emails.send({
+      from: 'STEM Academia <onboarding@resend.dev>',
+      to: user.email,
+      subject: 'Сброс пароля — STEM Academia',
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Сброс пароля</h2>
+          <p>Здравствуйте, ${user.full_name || user.username}.</p>
+          <p>Вы запросили восстановление пароля для STEM Academia.</p>
+          <p>Нажмите на кнопку ниже, чтобы создать новый пароль:</p>
+          <p>
+            <a 
+              href="${resetLink}" 
+              style="background:#2f6b12;color:white;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:bold;"
+            >
+              Сбросить пароль
+            </a>
+          </p>
+          <p>Ссылка действует 30 минут.</p>
+          <p>Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</p>
+        </div>
+      `,
+    });
+
     res.json({
-      message: 'Ссылка для сброса пароля создана',
-      resetLink,
+      message: 'Ссылка для сброса пароля отправлена на email',
     });
   } catch (err) {
-    console.error('Forgot password error:', err);
+    console.error('Forgot password email error:', err);
 
     res.status(500).json({
-      error: 'Ошибка при создании ссылки сброса пароля',
+      error: err.message || 'Ошибка при отправке письма',
     });
   }
 });
