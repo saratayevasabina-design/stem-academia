@@ -8,7 +8,7 @@ const LIGHT = '#f3f8ec';
 
 export default function ForgotPassword() {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
-  const [resetLink, setResetLink] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +16,7 @@ export default function ForgotPassword() {
     e.preventDefault();
 
     setError('');
-    setResetLink('');
+    setMessage('');
     setLoading(true);
 
     try {
@@ -24,10 +24,13 @@ export default function ForgotPassword() {
         usernameOrEmail,
       });
 
-      setResetLink(res.data.resetLink);
+      setMessage(
+        res.data.message ||
+          'Если такой аккаунт существует, ссылка для сброса пароля отправлена на email.'
+      );
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Ошибка при создании ссылки');
+      setError(err.response?.data?.error || 'Ошибка при отправке письма');
     } finally {
       setLoading(false);
     }
@@ -50,7 +53,7 @@ export default function ForgotPassword() {
         </h1>
 
         <p style={{ color: '#6b7280', marginTop: 10, marginBottom: 28 }}>
-          Введите username или email. Система создаст ссылку для смены пароля.
+          Введите username или email. Ссылка для смены пароля будет отправлена на вашу почту.
         </p>
 
         {error && (
@@ -65,6 +68,24 @@ export default function ForgotPassword() {
             }}
           >
             {error}
+          </div>
+        )}
+
+        {message && (
+          <div
+            style={{
+              background: '#e8f8ee',
+              color: GREEN,
+              padding: '14px 16px',
+              borderRadius: 14,
+              fontWeight: 800,
+              marginBottom: 18,
+              lineHeight: 1.5,
+            }}
+          >
+            {message}
+            <br />
+            Проверьте Inbox, Spam или Promotions.
           </div>
         )}
 
@@ -93,38 +114,9 @@ export default function ForgotPassword() {
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
           >
-            {loading ? 'Создаём...' : 'Создать ссылку'}
+            {loading ? 'Отправляем...' : 'Отправить ссылку на email'}
           </button>
         </form>
-
-        {resetLink && (
-          <div
-            style={{
-              marginTop: 24,
-              background: '#f8fbf4',
-              border: '1px solid #dfe8d6',
-              borderRadius: 18,
-              padding: 18,
-            }}
-          >
-            <b style={{ color: DARK }}>Ссылка для сброса пароля:</b>
-
-            <p style={{ color: '#6b7280', lineHeight: 1.5 }}>
-              В реальном проекте эта ссылка отправляется на email. Сейчас для теста можно открыть её вручную:
-            </p>
-
-            <a
-              href={resetLink}
-              style={{
-                color: GREEN,
-                fontWeight: 900,
-                wordBreak: 'break-all',
-              }}
-            >
-              {resetLink}
-            </a>
-          </div>
-        )}
 
         <div style={{ marginTop: 22, color: '#6b7280' }}>
           Вспомнили пароль?{' '}
