@@ -46,7 +46,7 @@ router.post('/register', async (req, res) => {
       RETURNING id, username, email, full_name, role
       `,
       [
-        username.trim(),
+        username.trim().toLowerCase(),
         email.trim().toLowerCase(),
         password_hash,
         full_name || username,
@@ -71,7 +71,7 @@ router.post('/register', async (req, res) => {
     }
 
     res.status(500).json({
-      error: 'Ошибка при регистрации',
+      error: err.message || 'Ошибка при регистрации',
     });
   }
 });
@@ -87,13 +87,15 @@ router.post('/login', async (req, res) => {
   }
 
   try {
+    const loginValue = username.trim().toLowerCase();
+
     const { rows } = await req.db.query(
       `
       SELECT id, username, email, password_hash, full_name, role
       FROM users
-      WHERE username = $1 OR email = $1
+      WHERE LOWER(username) = $1 OR LOWER(email) = $1
       `,
-      [username.trim().toLowerCase()]
+      [loginValue]
     );
 
     if (!rows.length) {
@@ -127,7 +129,7 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', err);
 
     res.status(500).json({
-      error: 'Ошибка при входе',
+      error: err.message || 'Ошибка при входе',
     });
   }
 });
@@ -187,13 +189,15 @@ router.post('/forgot-password', async (req, res) => {
   }
 
   try {
+    const loginValue = usernameOrEmail.trim().toLowerCase();
+
     const { rows } = await req.db.query(
       `
       SELECT id, username, email, full_name
       FROM users
-      WHERE username = $1 OR email = $1
+      WHERE LOWER(username) = $1 OR LOWER(email) = $1
       `,
-      [usernameOrEmail.trim().toLowerCase()]
+      [loginValue]
     );
 
     if (!rows.length) {
@@ -230,29 +234,63 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-    await resend.emails.send({
+    const emailResult = await resend.emails.send({
       from: 'STEM Academia <onboarding@resend.dev>',
       to: user.email,
       subject: 'Сброс пароля — STEM Academia',
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
           <h2>Сброс пароля</h2>
+
           <p>Здравствуйте, ${user.full_name || user.username}.</p>
+
           <p>Вы запросили восстановление пароля для STEM Academia.</p>
+
           <p>Нажмите на кнопку ниже, чтобы создать новый пароль:</p>
+
           <p>
             <a 
               href="${resetLink}" 
-              style="background:#2f6b12;color:white;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:bold;"
+              style="
+                background:#2f6b12;
+                color:white;
+                padding:12px 18px;
+                border-radius:10px;
+                text-decoration:none;
+                font-weight:bold;
+                display:inline-block;
+              "
             >
               Сбросить пароль
             </a>
           </p>
+
           <p>Ссылка действует 30 минут.</p>
+
+          <p>
+            Если кнопка не работает, скопируйте эту ссылку и откройте её в браузере:
+          </p>
+
+          <p style="word-break: break-all;">
+            ${resetLink}
+          </p>
+
           <p>Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</p>
         </div>
       `,
     });
+
+    if (emailResult.error) {
+      console.error('Resend send error:', emailResult.error);
+
+      return res.status(500).json({
+        error:
+          emailResult.error.message ||
+          'Resend не смог отправить письмо. Проверьте API key, email или домен.',
+      });
+    }
+
+    console.log('Resend email sent:', emailResult.data);
 
     res.json({
       message: 'Ссылка для сброса пароля отправлена на email',
@@ -319,7 +357,7 @@ router.post('/reset-password', async (req, res) => {
     console.error('Reset password error:', err);
 
     res.status(500).json({
-      error: 'Ошибка при смене пароля',
+      error: err.message || 'Ошибка при смене пароля',
     });
   }
 });
